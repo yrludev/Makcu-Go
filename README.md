@@ -69,27 +69,96 @@ func main(){
 ### **Functions**
 
 - **makcu.Debug**: A boolean flag to enable or disable debug printouts.
+    ```go
+    makcu.Debug = true
+    ```
 - **makcu.Find()**: Searches for and returns the COM port associated with the makcu.
+    ``` go
+    ComPort, err := makcu.Find()
+    ```
 - **makcu.Connect(port string, baudRate int)**: Establishes a connection to the makcu via the specified COM port and baud rate, returning a makcu instance.
-- **makcu.ChangeBaudRate(MakcuConn *makcu)**: Changes the baud rate to 4m baud and returns a new makcu instance with the updated baud rate.
+  ```go
+  MakcuConn, err := makcu.Connect("COM3", 115200)
+  ```
+- **makcu.ChangeBaudRate(MakcuConn *makcu)**: Changes the baud rate to 4m baud and returns a new makcu instance using the updated baud rate.
+    ```go
+    MakcuConn, err := makcu.ChangeBaudRate(MakcuConn)
+    ```
 
-### **makcu Methods**
+### **MAKCU Commands**
 
-- **MakcuConn.Write(data []byte)**: Sends the provided data to the makcu.
+- **MakcuConn.Write(data []byte)**:  Sends the provided data to the makcu.
+    ```go
+    n, err := MakcuConn.Write([]byte("Hello World!"))
+    ```
 - **MakcuConn.Read(buf []byte)**: Reads data from the makcu and stores it into the provided buffer.
+    ```go
+    buf := make([]byte, 32)
+    n, err := MakcuConn.Read(buf)
+    ```
 - **MakcuConn.Close()**: Closes the current connection to the makcu.
+    ```go
+    err := MakcuConn.Close()
+    ```
 - **MakcuConn.LeftDown()**: Simulates pressing the left mouse button.
+    ```go
+    err := MakcuConn.LeftDown()
+    ```
 - **MakcuConn.LeftUp()**: Simulates releasing the left mouse button.
+    ```go
+    err := MakcuConn.LeftUp()
+    ```
 - **MakcuConn.LeftClick()**: Simulates a full left mouse click (press and release).
+    ```go
+    err := MakcuConn.LeftClick()
+    ```
 - **MakcuConn.RightDown()**: Simulates pressing the right mouse button.
+    ```go
+    err := MakcuConn.RightDown()
+    ```
 - **MakcuConn.RightUp()**: Simulates releasing the right mouse button.
+    ```go
+    err := MakcuConn.RightUp()
+    ```
 - **MakcuConn.RightClick()**: Simulates a full right mouse click (press and release).
+    ```go
+    err := MakcuConn.RightClick()
+    ```
 - **MakcuConn.MiddleDown()**: Simulates pressing the middle mouse button.
+    ```go
+    err := MakcuConn.MiddleDown()
+    ```
 - **MakcuConn.MiddleUp()**: Simulates releasing the middle mouse button.
+    ```go
+    err := MakcuConn.MiddleUp()
+    ```
 - **MakcuConn.MiddleClick()**: Simulates a full middle mouse click (press and release).
-- **MakcuConn.ClickMouse(i int, delay time.Duration)**: Simulates a mouse click with a given delay (press and release).
+    ```go
+    err := MakcuConn.MiddleClick()
+    ```
+- **MakcuConn.ClickMouse(i int, delay time.Duration)**: Simulates a mouse click with a given delay between the press and the release.
+    ```go
+    // MOUSE_BUTTON_LEFT = 1
+    err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_LEFT, 1 *time.Second)
+    // MOUSE_BUTTON_RIGHT = 2
+    err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_RIGHT, 1 *time.Second)
+    // MOUSE_BUTTON_MIDDLE = 3
+    err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_MIDDLE, 1 *time.Second)
+    ```
 - **MakcuConn.MoveMouse(x, y int)**: Moves the mouse cursor over (x, y) pixels.
+    ```go
+    err := MakcuConn.MoveMouse(100, 100)
+    ```
 - **MakcuConn.MoveMouseWithCurve(x, y int, ...int)**: Moves the mouse cursor along a curve.
+    ```go
+    // simple curve
+    err := MakcuConn.MoveMouseWithCurve(100, 100, 10)
+    // custom curve trijectory
+    err := MakcuConn.MoveMouseWithCurve(100, 100, 10, 50, 60)
+    ```
 - **MakcuConn.ScrollMouse(amount int)**: Scrolls the mouse by the specified amount (positive for up, negative for down).
+    ```go
+    err := MakcuConn.ScrollMouse(6)
+    ```
 
   
