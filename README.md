@@ -138,11 +138,9 @@ func main(){
     ```
 - **MakcuConn.ClickMouse(i int, delay time.Duration)**: Simulates a mouse click with a given delay between the press and the release.
     ```go
-    // MOUSE_BUTTON_LEFT = 1
+    // MOUSE_BUTTON_LEFT = 1, MOUSE_BUTTON_RIGHT = 2, MOUSE_BUTTON_MIDDLE = 3
     err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_LEFT, 1 *time.Second)
-    // MOUSE_BUTTON_RIGHT = 2
     err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_RIGHT, 1 *time.Second)
-    // MOUSE_BUTTON_MIDDLE = 3
     err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_MIDDLE, 1 *time.Second)
     ```
 - **MakcuConn.MoveMouse(x, y int)**: Moves the mouse cursor over (x, y) pixels.
