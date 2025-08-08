@@ -2,14 +2,13 @@ package makcu
 
 import (
 	"fmt"
-	"math"
-	"math/rand"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 var Debug bool = false
@@ -79,6 +78,7 @@ func Find() (MakcuPort string, err error) {
 
 	defer destroyDeviceList.Call(h)
 
+	index := 0
 	for {
 		var devInfo struct {
 			cbSize    uint32
@@ -137,6 +137,7 @@ func Find() (MakcuPort string, err error) {
 
 		fmt.Printf("Failed to locate MAKCU!\n")
 
+		index++
 	}
 
 	return "", fmt.Errorf("Device not found")
@@ -222,7 +223,7 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 }
 
 // Close the connection to the MAKCU (this is pretty fucking obvious but yk)
-func (m *MakcuHandle) Close() {
+func (m *MakcuHandle) Close() error {
 	return windows.CloseHandle(m.handle)
 }
 
@@ -432,7 +433,7 @@ func (m *MakcuHandle) ClickMouse(i int, delay time.Duration) error {
 }
 
 func (m *MakcuHandle) ScrollMouse(amount int) error {
-	_, err := m.Write([]byte("km.wheel(", amount, ")\r"))
+	_, err := m.Write([]byte(fmt.Sprintf("km.wheel(%d)\r", amount)))
 	if err != nil {
 		DebugPrint("Failed to scroll mouse: %v", err)
 		return err
@@ -465,7 +466,7 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 		cmd = fmt.Sprintf("km.move(%d, %d, %d, %d, %d)\r", x, y, params[0], params[1], params[2])
 	default:
 		DebugPrint("Invalid number of parameters")
-		return errors.New("Invalid number of parameters")
+		return fmt.Errorf("Invalid number of parameters")
 	}
 
 	_, err := m.Write([]byte(cmd))
@@ -476,4 +477,3 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
-
