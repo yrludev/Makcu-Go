@@ -62,7 +62,7 @@ const (
 )
 
 // Search for the MAKCU via the default name and the VID and PID of the device.
-func Find() (MakcuPort string) {
+func Find() (MakcuPort string, err error) {
 	setupapi := syscall.NewLazyDLL("setupapi.dll")
 	getClassDevs := setupapi.NewProc("SetupDiGetClassDevsW")
 	enumDeviceInfo := setupapi.NewProc("SetupDiEnumDeviceInfo")
@@ -73,8 +73,8 @@ func Find() (MakcuPort string) {
 
 	h, _, _ := getClassDevs.Call(uintptr(unsafe.Pointer(&guid)), 0, 0, uintptr(0x2))
 	if h == 0 || h == ^uintptr(0) {
-		fmt.Println("Failed to get device list")
-		return ""
+		DebugPrint("Failed to get device list")
+		return "", fmt.Errorf("Failed to get device list")
 	}
 
 	defer destroyDeviceList.Call(h)
@@ -122,14 +122,14 @@ func Find() (MakcuPort string) {
 			Port, err := GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
 			if err != nil {
 				DebugPrint("Failed to get port name: %v\n", err)
-				return ""
+				return "", err
 			}
 
 			DebugPrint("Port Name: %s\n", Port)
 			DebugPrint("--------\r\n")
 
 			if strings.Contains(Port, "COM") {
-				return Port
+				return Port, nil
 			}
 
 			return "", nil
@@ -476,3 +476,4 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
+
