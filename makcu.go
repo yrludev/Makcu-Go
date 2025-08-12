@@ -108,7 +108,7 @@ func Find() (MakcuPort string, err error) {
 			DebugPrint("Description:   %s\r\n", description)
 			DebugPrint("Hardware Info:   %s\r\n", hwid)
 
-			Port := regexp.MustCompile(`COM\d+`).FindString(DeviceName)
+			Port := regexp.MustCompile(`COM\d+`).FindString(DeviceName) // creds to yrlu for this idea lawl
 			if Port != "" {
 				DebugPrint("Port Name: %s\n", Port)
 				DebugPrint("--------\r\n")
@@ -474,6 +474,7 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
+
 
 
 
