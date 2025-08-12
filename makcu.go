@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+	"regexp"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -473,5 +474,6 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
+
 
 
