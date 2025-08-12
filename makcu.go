@@ -114,8 +114,14 @@ func Find() (MakcuPort string, err error) {
 				Port := strings.Split(DeviceName, "COM")[1]
 				Port = "COM" + Port
 				DebugPrint("Port Name: %s\r\n--------\r\n", Port)
-				// -1 to remove the ) from "(COM3)" AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-				return Port[:len(Port)-1], nil // idk why i did it like this im sure there is an easier way but uhh idgaf it works lawl :)
+				if strings.Contains(Port, "(") {
+					Port = strings.ReplaceAll(Port, "(", "")
+				}
+
+				if strings.Contains(Port, ")") {
+					Port = strings.ReplaceAll(Port, ")", "")
+				}
+				return Port, nil
 			}
 
 			// if we can't find the COM port from the name, then we try to get it from the registry.
