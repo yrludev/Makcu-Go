@@ -107,28 +107,15 @@ func Find() (MakcuPort string, err error) {
 			DebugPrint("Description:   %s\r\n", description)
 			DebugPrint("Hardware Info:   %s\r\n", hwid)
 
-			// THIS IS SO FUCKING UGLY AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
-
-			// IF we can find the COM port from the name we can extract it from there.
-			if strings.Contains(DeviceName, "COM") { // this might end up causing some issues if people change the name of their MAKCU or if for some reason the com port isnt in the name. But for now its fine.
-				Port := strings.Split(DeviceName, "COM")[1]
-				Port = "COM" + Port
-				
-				if strings.Contains(Port, "(") {
-					Port = strings.ReplaceAll(Port, "(", "")
-				}
-
-				if strings.Contains(Port, ")") {
-					Port = strings.ReplaceAll(Port, ")", "")
-				}
-
-				DebugPrint("Port Name: %s\r\n--------\r\n", Port)				
-
+			Port := regexp.MustCompile(`COM\d+`).FindString(DeviceName)
+			if Port != "" {
+				DebugPrint("Port Name: %s\n", Port)
+				DebugPrint("--------\r\n")
 				return Port, nil
 			}
 
 			// if we can't find the COM port from the name, then we try to get it from the registry.
-			Port, err := GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
+			Port, err = GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
 			if err != nil {
 				DebugPrint("Failed to get port name: %v\n", err)
 				return "", err
@@ -144,10 +131,10 @@ func Find() (MakcuPort string, err error) {
 			return "", nil
 		}
 
-		fmt.Printf("Failed to locate MAKCU!\n")
-
 		index++
 	}
+
+	fmt.Printf("Failed to locate MAKCU!\n")
 
 	return "", fmt.Errorf("Device not found")
 }
@@ -486,4 +473,5 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
+
 
