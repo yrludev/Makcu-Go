@@ -113,7 +113,7 @@ func Find() (MakcuPort string, err error) {
 			if strings.Contains(DeviceName, "COM") { // this might end up causing some issues if people change the name of their MAKCU or if for some reason the com port isnt in the name. But for now its fine.
 				Port := strings.Split(DeviceName, "COM")[1]
 				Port = "COM" + Port
-				DebugPrint("Port Name: %s\r\n--------\r\n", Port)
+				
 				if strings.Contains(Port, "(") {
 					Port = strings.ReplaceAll(Port, "(", "")
 				}
@@ -121,6 +121,9 @@ func Find() (MakcuPort string, err error) {
 				if strings.Contains(Port, ")") {
 					Port = strings.ReplaceAll(Port, ")", "")
 				}
+
+				DebugPrint("Port Name: %s\r\n--------\r\n", Port)				
+
 				return Port, nil
 			}
 
@@ -483,3 +486,4 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
+
