@@ -8,16 +8,29 @@ import (
 	"time"
 	"unsafe"
 
+	"log/slog"
+	"os"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
 var Debug bool = false
 
+var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+
 func DebugPrint(s string, a ...interface{}) {
 	if Debug {
-		fmt.Printf(s, a...)
+		logger.Debug(fmt.Sprintf("🐱 "+s, a...))
 	}
+}
+
+func InfoPrint(s string, a ...interface{}) {
+	logger.Info(fmt.Sprintf("🐱🟢 "+s, a...))
+}
+
+func ErrorPrint(s string, a ...interface{}) {
+	logger.Error(fmt.Sprintf("🐱🔴 "+s, a...))
 }
 
 func utf16ToString(buf []uint16) string {
@@ -41,7 +54,7 @@ func GetPortName(hDevInfo uintptr, devInfoData *byte) (string, error) {
 
 	regKey, _, err := setupDiOpenDevRegKey.Call(hDevInfo, uintptr(unsafe.Pointer(devInfoData)), 0x00000001, 0, 0x00000001, 0x20019)
 	if regKey == 0 || regKey == ^uintptr(0) {
-		return "", err
+		return "", fmt.Errorf("GetPortName: failed to open device registry key: %w", err)
 	}
 
 	defer syscall.RegCloseKey(syscall.Handle(regKey))
@@ -49,7 +62,7 @@ func GetPortName(hDevInfo uintptr, devInfoData *byte) (string, error) {
 	key := registry.Key(regKey)
 	portName, _, err := key.GetStringValue("PortName")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("GetPortName: failed to get 'PortName' value: %w", err)
 	}
 
 	return portName, nil
@@ -73,9 +86,14 @@ func Find() (string, error) {
 	h, _, _ := getClassDevs.Call(uintptr(unsafe.Pointer(&guid)), 0, 0, uintptr(0x2))
 	if h == 0 || h == ^uintptr(0) {
 		DebugPrint("Failed to get device list\n")
-		return "", fmt.Errorf("failed to get device list")
+		return "", fmt.Errorf("Find: failed to get device list")
 	}
-	defer destroyDeviceList.Call(h)
+	defer func() {
+		ret, _, _ := destroyDeviceList.Call(h)
+		if ret == 0 {
+			ErrorPrint("Failed to destroy device info list handle")
+		}
+	}()
 
 	for index := 0; ; index++ {
 		var devInfo struct {
@@ -116,7 +134,12 @@ func Find() (string, error) {
 			port, err := GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
 			if err != nil {
 				DebugPrint("Failed to get port name: %v\n", err)
-				return "", err
+				// Always destroy device list before returning
+				ret, _, _ := destroyDeviceList.Call(h)
+				if ret == 0 {
+					ErrorPrint("Failed to destroy device info list handle after error")
+				}
+				return "", fmt.Errorf("Find: failed to get port name from registry: %w", err)
 			}
 			DebugPrint("Port Name: %s\n", port)
 			DebugPrint("--------\n")
@@ -127,7 +150,7 @@ func Find() (string, error) {
 		}
 	}
 	fmt.Println("Failed to locate MAKCU!")
-	return "", fmt.Errorf("device not found")
+	return "", fmt.Errorf("Find: device not found")
 }
 
 // Sets the timeout settings for the COM port
@@ -144,7 +167,7 @@ func SetTimeouts(handle windows.Handle) error {
 
 	ret, _, err := setCommTimeouts.Call(uintptr(handle), uintptr(unsafe.Pointer(&timeouts)))
 	if ret == 0 {
-		return fmt.Errorf("SetCommTimeouts Failed: %v", err)
+		return fmt.Errorf("SetTimeouts: SetCommTimeouts failed: %w", err)
 	}
 
 	return nil
@@ -168,12 +191,12 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 
 	path, err := windows.UTF16PtrFromString(portName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert port name to UTF16: %v", err)
+		return nil, fmt.Errorf("Connect: failed to convert port name to UTF16: %w", err)
 	}
 
 	handle, _, err := openPort.Call(uintptr(unsafe.Pointer(path)), syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, 0, 3, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 	if handle == uintptr(syscall.InvalidHandle) {
-		return nil, fmt.Errorf("failed to open port: %v", err)
+		return nil, fmt.Errorf("Connect: failed to open port: %w", err)
 	}
 
 	portHandle := windows.Handle(handle)
@@ -191,12 +214,12 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 
 	ret, _, err := setCommState.Call(uintptr(portHandle), uintptr(unsafe.Pointer(dcbOpts)))
 	if ret == 0 {
-		return nil, fmt.Errorf("failed to set communication state: %v", err)
+		return nil, fmt.Errorf("Connect: failed to set communication state: %w", err)
 	}
 
 	err = SetTimeouts(portHandle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set timeouts: %v", err)
+		return nil, fmt.Errorf("Connect: failed to set timeouts: %w", err)
 	}
 
 	CleanPort := strings.TrimPrefix(portName, `\\.\`)
@@ -211,7 +234,11 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 
 // Close the connection to the MAKCU (this is pretty fucking obvious but yk)
 func (m *MakcuHandle) Close() error {
-	return windows.CloseHandle(m.handle)
+	err := windows.CloseHandle(m.handle)
+	if err != nil {
+		return fmt.Errorf("Close: failed to close handle: %w", err)
+	}
+	return nil
 }
 
 // Sends the bytes needed to change the Baud Rate of the MAKCU to 4m and then returns a new Connection object with the new baud rate
@@ -219,35 +246,44 @@ func (m *MakcuHandle) Close() error {
 func ChangeBaudRate(m *MakcuHandle) (NewConn *MakcuHandle, err error) {
 	n, err := m.Write([]byte{0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00})
 	if err != nil {
-		return nil, fmt.Errorf("failed to change baud rate: write error: %v", err)
+		// Always try to close the handle on error
+		_ = m.Close()
+		return nil, fmt.Errorf("ChangeBaudRate: write error: %w", err)
 	}
 
 	if n != 9 {
-		return nil, fmt.Errorf("failed to change baud rate: wrong number of bytes written")
+		_ = m.Close()
+		return nil, fmt.Errorf("ChangeBaudRate: wrong number of bytes written (got %d, want 9)", n)
 	}
 
-	m.Close()
+	if err := m.Close(); err != nil {
+		ErrorPrint("ChangeBaudRate: failed to close old connection: %v", err)
+		// Continue, but log the error
+	}
 
 	NewConn, err = Connect(m.Port, 4000000)
 	if err != nil {
-		return nil, fmt.Errorf("failed to change baud rate: connect error: %v", err)
+		return nil, fmt.Errorf("ChangeBaudRate: connect error: %w", err)
 	}
 
 	time.Sleep(1 * time.Second)
 
 	_, err = NewConn.Write([]byte("km.version()\r"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to change baud rate: write error: %v", err)
+		_ = NewConn.Close()
+		return nil, fmt.Errorf("ChangeBaudRate: write error after reconnect: %w", err)
 	}
 
 	ReadBuf := make([]byte, 32)
 	n, err = NewConn.Read(ReadBuf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to change baud rate: read error: %v", err)
+		_ = NewConn.Close()
+		return nil, fmt.Errorf("ChangeBaudRate: read error after reconnect: %w", err)
 	}
 
 	if !strings.Contains(string(ReadBuf[:n]), "MAKCU") {
-		return nil, fmt.Errorf("failed to change baud rate: did not receive expected response")
+		_ = NewConn.Close()
+		return nil, fmt.Errorf("ChangeBaudRate: did not receive expected response, got: %q", string(ReadBuf[:n]))
 	}
 
 	time.Sleep(1 * time.Second)
@@ -271,7 +307,7 @@ func (m *MakcuHandle) Write(data []byte) (int, error) {
 
 	ret, _, err := writeFile.Call(uintptr(m.handle), uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)), uintptr(unsafe.Pointer(&bytesWritten)), uintptr(unsafe.Pointer(&overlapped)))
 	if ret == 0 {
-		return -1, fmt.Errorf("error writing to port: %v", err)
+		return -1, fmt.Errorf("Write: error writing to port: %w", err)
 	}
 
 	return int(bytesWritten), nil
@@ -285,7 +321,7 @@ func (m *MakcuHandle) Read(buffer []byte) (int, error) {
 	var bytesRead uint32
 	ret, _, err := readFile.Call(uintptr(m.handle), uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer)), uintptr(unsafe.Pointer(&bytesRead)), 0)
 	if ret == 0 {
-		return -1, fmt.Errorf("error reading from port: %v", err)
+		return -1, fmt.Errorf("Read: error reading from port: %w", err)
 	}
 
 	return int(bytesRead), nil
