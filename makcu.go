@@ -88,6 +88,12 @@ func Find() (string, error) {
 		DebugPrint("Failed to get device list\n")
 		return "", fmt.Errorf("Find: failed to get device list")
 	}
+	defer func() {
+		ret, _, _ := destroyDeviceList.Call(h)
+		if ret == 0 {
+			ErrorPrint("Failed to destroy device info list handle")
+		}
+	}()
 
 	for index := 0; ; index++ {
 		var devInfo struct {
@@ -96,7 +102,6 @@ func Find() (string, error) {
 			DevInst   uint32
 			Reserved  uintptr
 		}
-	
 		devInfo.cbSize = uint32(unsafe.Sizeof(devInfo))
 
 		ok, _, _ := enumDeviceInfo.Call(h, uintptr(index), uintptr(unsafe.Pointer(&devInfo)))
@@ -136,17 +141,14 @@ func Find() (string, error) {
 				}
 				return "", fmt.Errorf("Find: failed to get port name from registry: %w", err)
 			}
-			
 			DebugPrint("Port Name: %s\n", port)
 			DebugPrint("--------\n")
 			if strings.Contains(port, "COM") {
 				return port, nil
 			}
-			
 			return "", nil
 		}
 	}
-	
 	fmt.Println("Failed to locate MAKCU!")
 	return "", fmt.Errorf("Find: device not found")
 }
@@ -498,4 +500,3 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
-
