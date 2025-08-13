@@ -453,7 +453,7 @@ func (m *MakcuHandle) MiddleUp() error {
 	return nil
 }
 
-// 🐱🐱🐱 Cat middle up! 🐱🐱🐱
+// 🐱🐱🐱 Cat middle up 🖕! 🐱🐱🐱
 
 // 🐱 Mouse middle click
 func (m *MakcuHandle) MiddleClick() error {
