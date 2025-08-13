@@ -1,22 +1,26 @@
+// 🐱
 package makcu
+
 //newest pdate
+// 🐱 Imports
 import (
 	"fmt"
+	"log/slog"
+	"os"
 	"regexp"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
 
-	"log/slog"
-	"os"
-
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
+// 🐱 Debug flag
 var Debug bool = false
 
+// 🐱 Logger instance
 var logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 func DebugPrint(s string, a ...interface{}) {
@@ -25,14 +29,19 @@ func DebugPrint(s string, a ...interface{}) {
 	}
 }
 
+// 🐱🐱🐱 Cat debug function! 🐱🐱🐱
+
 func InfoPrint(s string, a ...interface{}) {
 	logger.Info(fmt.Sprintf("🐱🟢 "+s, a...))
 }
+
+// 🐱🐱🐱 Cat info function! 🐱🐱🐱
 
 func ErrorPrint(s string, a ...interface{}) {
 	logger.Error(fmt.Sprintf("🐱🔴 "+s, a...))
 }
 
+// 🐱 Converts UTF16 buffer to string
 func utf16ToString(buf []uint16) string {
 	for i, v := range buf {
 		if v == 0 {
@@ -42,12 +51,18 @@ func utf16ToString(buf []uint16) string {
 	return syscall.UTF16ToString(buf)
 }
 
-func GetDeviceInfo(h uintptr, devInfo unsafe.Pointer, getProp *syscall.LazyProc, propertyCode uint32) string {
+// 🐱🐱🐱 Cat string conversion! 🐱🐱🐱
+
+// 🐱 Gets device info
+func GetDeviceInfo(h, devInfo unsafe.Pointer, getProp *syscall.LazyProc, propertyCode uint32) string {
 	buf := make([]uint16, 512)
-	getProp.Call(h, uintptr(devInfo), uintptr(propertyCode), 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)*2), 0)
+	getProp.Call(uintptr(h), uintptr(devInfo), uintptr(propertyCode), 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)*2), 0)
 	return utf16ToString(buf)
 }
 
+// 🐱🐱🐱 Cat device info! 🐱🐱🐱
+
+// 🐱 Gets port name from registry
 func GetPortName(hDevInfo uintptr, devInfoData *byte) (string, error) {
 	setupapi := syscall.NewLazyDLL("setupapi.dll")
 	setupDiOpenDevRegKey := setupapi.NewProc("SetupDiOpenDevRegKey")
@@ -68,6 +83,9 @@ func GetPortName(hDevInfo uintptr, devInfoData *byte) (string, error) {
 	return portName, nil
 }
 
+// 🐱🐱🐱 Cat port name! 🐱🐱🐱
+
+// 🐱 Device property constants
 const (
 	DeviceDescription = 0x0 // Device Description (ex: USB-Enhanced-SERIAL CH343)
 	HardwareID        = 0x1 // Hardware ID (ex: USB\VID_1A86&PID_55D3&REV_0445)
@@ -95,6 +113,8 @@ func Find() (string, error) {
 		}
 	}()
 
+	// 🐱🐱🐱 Cat device search! 🐱🐱🐱
+
 	for index := 0; ; index++ {
 		var devInfo struct {
 			cbSize    uint32
@@ -109,9 +129,9 @@ func Find() (string, error) {
 			break
 		}
 
-		description := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, DeviceDescription)
-		hwid := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, HardwareID)
-		deviceNameStr := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, DeviceName)
+		description := GetDeviceInfo(unsafe.Pointer(h), unsafe.Pointer(&devInfo), getDeviceProperty, DeviceDescription)
+		hwid := GetDeviceInfo(unsafe.Pointer(h), unsafe.Pointer(&devInfo), getDeviceProperty, HardwareID)
+		deviceNameStr := GetDeviceInfo(unsafe.Pointer(h), unsafe.Pointer(&devInfo), getDeviceProperty, DeviceName)
 
 		if deviceNameStr == "" || description == "" || hwid == "" {
 			continue
@@ -173,6 +193,9 @@ func SetTimeouts(handle windows.Handle) error {
 	return nil
 }
 
+// 🐱🐱🐱 Cat timeouts! 🐱🐱🐱
+
+// 🐱 Handle for MAKCU device
 type MakcuHandle struct {
 	Port   string
 	handle windows.Handle
@@ -232,7 +255,9 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 	}, nil
 }
 
-// Close the connection to the MAKCU (this is pretty fucking obvious but yk)
+// 🐱🐱🐱 Cat connect! 🐱🐱🐱
+
+// Close the connection to the MAKCU
 func (m *MakcuHandle) Close() error {
 	err := windows.CloseHandle(m.handle)
 	if err != nil {
@@ -241,9 +266,11 @@ func (m *MakcuHandle) Close() error {
 	return nil
 }
 
+// 🐱🐱🐱 Cat close! 🐱🐱🐱
+
 // Sends the bytes needed to change the Baud Rate of the MAKCU to 4m and then returns a new Connection object with the new baud rate
 // Note: This is NOT a permanent change and will reset back to the default 115200 baud rate after the MAKCU powers off and then back on again.
-func ChangeBaudRate(m *MakcuHandle) (NewConn *MakcuHandle, err error) {
+func (m *MakcuHandle) ChangeBaudRate() (*MakcuHandle, error) {
 	n, err := m.Write([]byte{0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00})
 	if err != nil {
 		// Always try to close the handle on error
@@ -261,7 +288,7 @@ func ChangeBaudRate(m *MakcuHandle) (NewConn *MakcuHandle, err error) {
 		// Continue, but log the error
 	}
 
-	NewConn, err = Connect(m.Port, 4000000)
+	NewConn, err := Connect(m.Port, 4000000)
 	if err != nil {
 		return nil, fmt.Errorf("ChangeBaudRate: connect error: %w", err)
 	}
@@ -293,6 +320,8 @@ func ChangeBaudRate(m *MakcuHandle) (NewConn *MakcuHandle, err error) {
 	return NewConn, nil
 }
 
+// 🐱🐱🐱 Cat baud rate! 🐱🐱🐱
+
 // Sends the given bytes to the MAKCU and returns the number of bytes written.
 func (m *MakcuHandle) Write(data []byte) (int, error) {
 	var bytesWritten uint32
@@ -313,6 +342,8 @@ func (m *MakcuHandle) Write(data []byte) (int, error) {
 	return int(bytesWritten), nil
 }
 
+// 🐱🐱🐱 Cat write! 🐱🐱🐱
+
 // Reads data from the MAKCU and saves it to a given buffer then returns the number of bytes read.
 func (m *MakcuHandle) Read(buffer []byte) (int, error) {
 	kernel32 := syscall.NewLazyDLL("kernel32.dll")
@@ -327,103 +358,125 @@ func (m *MakcuHandle) Read(buffer []byte) (int, error) {
 	return int(bytesRead), nil
 }
 
+// 🐱🐱🐱 Cat read! 🐱🐱🐱
+
+// 🐱 Mouse left down
 func (m *MakcuHandle) LeftDown() error {
 	_, err := m.Write([]byte("km.left(1)\r"))
 	if err != nil {
 		DebugPrint("Failed to press mouse: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat left down! 🐱🐱🐱
+
+// 🐱 Mouse left up
 func (m *MakcuHandle) LeftUp() error {
 	_, err := m.Write([]byte("km.left(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to release mouse: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat left up! 🐱🐱🐱
+
+// 🐱 Mouse left click
 func (m *MakcuHandle) LeftClick() error {
 	_, err := m.Write([]byte("km.left(1)\r km.left(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to click mouse: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat left click! 🐱🐱🐱
+
+// 🐱 Mouse right down
 func (m *MakcuHandle) RightDown() error {
 	_, err := m.Write([]byte("km.right(1)\r"))
 	if err != nil {
 		DebugPrint("Failed to press mouse: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat right down! 🐱🐱🐱
+
+// 🐱 Mouse right up
 func (m *MakcuHandle) RightUp() error {
 	_, err := m.Write([]byte("km.right(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to release mouse: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat right up! 🐱🐱🐱
+
+// 🐱 Mouse right click
 func (m *MakcuHandle) RightClick() error {
 	_, err := m.Write([]byte("km.right(1)\r km.right(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to right click mouse: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat right click! 🐱🐱🐱
+
+// 🐱 Mouse middle down
 func (m *MakcuHandle) MiddleDown() error {
 	_, err := m.Write([]byte("km.middle(1)\r"))
 	if err != nil {
 		DebugPrint("Failed to press middle mouse button: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat middle down! 🐱🐱🐱
+
+// 🐱 Mouse middle up
 func (m *MakcuHandle) MiddleUp() error {
 	_, err := m.Write([]byte("km.middle(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to release middle mouse button: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat middle up! 🐱🐱🐱
+
+// 🐱 Mouse middle click
 func (m *MakcuHandle) MiddleClick() error {
 	_, err := m.Write([]byte("km.middle(1)\r km.middle(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to middle click mouse: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat middle click! 🐱🐱🐱
+
+// 🐱 Mouse button constants
 const (
 	MOUSE_BUTTON_LEFT   = 1
 	MOUSE_BUTTON_RIGHT  = 2
 	MOUSE_BUTTON_MIDDLE = 3
 )
 
-func (m *MakcuHandle) ClickMouse(i int, delay time.Duration) error {
+// 🐱 Clicks a mouse button
+func (m *MakcuHandle) Click(i int, delay time.Duration) error {
 	// Basically, we create a function pointer which is just basically a variable that stores a function for us.
 	// Then we can use that variable to call the function later on. :()
 	type mouseAction func() error
@@ -455,31 +508,36 @@ func (m *MakcuHandle) ClickMouse(i int, delay time.Duration) error {
 	return nil
 }
 
-func (m *MakcuHandle) ScrollMouse(amount int) error {
+// 🐱🐱🐱 Cat click! 🐱🐱🐱
+
+// 🐱 Scrolls the mouse
+func (m *MakcuHandle) Scroll(amount int) error {
 	_, err := m.Write([]byte(fmt.Sprintf("km.wheel(%d)\r", amount)))
 	if err != nil {
 		DebugPrint("Failed to scroll mouse: %v", err)
 		return err
 	}
-
 	return nil
 }
 
-func (m *MakcuHandle) MoveMouse(x, y int) error {
+// 🐱🐱🐱 Cat scroll! 🐱🐱🐱
+
+// 🐱 Moves the mouse
+func (m *MakcuHandle) Move(x, y int) error {
 	_, err := m.Write([]byte(fmt.Sprintf("km.move(%d, %d)\r", x, y)))
 	if err != nil {
 		DebugPrint("Failed to move mouse: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
 
+// 🐱🐱🐱 Cat move! 🐱🐱🐱
+
 // use a curve with the built in curve functionality from MAKCU... i THINK this is only on fw v3+ ??? idk don't care to fact check it rn either :)
 // "It is common sense that the higher the number of the third parameter, the smoother the curve will be fitted" - from MAKCU/km box docs
-func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
+func (m *MakcuHandle) MoveCurve(x, y int, params ...int) error {
 	var cmd string
-
 	switch len(params) {
 	case 0:
 		cmd = fmt.Sprintf("km.move(%d, %d)\r", x, y)
@@ -497,6 +555,7 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 		DebugPrint("Failed to move mouse with curve: Write Error: %v", err)
 		return err
 	}
-
 	return nil
 }
+
+// 🐱🐱🐱 Cat curve move! 🐱🐱🐱
