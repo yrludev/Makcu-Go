@@ -1,4 +1,3 @@
-// 🐱
 package makcu
 
 //newest pdate
@@ -558,4 +557,36 @@ func (m *MakcuHandle) MoveCurve(x, y int, params ...int) error {
 	return nil
 }
 
-// 🐱🐱🐱 Cat curve move! 🐱🐱🐱
+// MoveMouse is a wrapper for Move to match example usage
+func (m *MakcuHandle) MoveMouse(x, y int) error {
+	return m.Move(x, y)
+}
+
+// ScrollMouse is a wrapper for Scroll to match example usage
+func (m *MakcuHandle) ScrollMouse(amount int) error {
+	return m.Scroll(amount)
+}
+
+
+// MoveMouseWithCurve is a wrapper for MoveCurve to match example usage, with nil check
+func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
+	if m == nil {
+		return fmt.Errorf("MoveMouseWithCurve: MakcuHandle is nil (no device connected)")
+	}
+	return m.MoveCurve(x, y, params...)
+}
+
+
+// ClickMouse is a wrapper for Click to match example usage, with nil check
+func (m *MakcuHandle) ClickMouse() error {
+	if m == nil {
+		return fmt.Errorf("ClickMouse: MakcuHandle is nil (no device connected)")
+	}
+	// Default to left click, no delay
+	return m.Click(MOUSE_BUTTON_LEFT, 0)
+}
+
+// ChangeBaudRate is a package-level function for compatibility with examples
+func ChangeBaudRate(m *MakcuHandle) (*MakcuHandle, error) {
+	return m.ChangeBaudRate()
+}
