@@ -567,7 +567,6 @@ func (m *MakcuHandle) ScrollMouse(amount int) error {
 	return m.Scroll(amount)
 }
 
-
 // MoveMouseWithCurve is a wrapper for MoveCurve to match example usage, with nil check
 func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 	if m == nil {
@@ -575,7 +574,6 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 	}
 	return m.MoveCurve(x, y, params...)
 }
-
 
 // ClickMouse is a wrapper for Click to match example usage, with nil check
 func (m *MakcuHandle) ClickMouse() error {
