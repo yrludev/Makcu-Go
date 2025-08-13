@@ -2,11 +2,11 @@ package makcu
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 	"unsafe"
-	"regexp"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -61,8 +61,8 @@ const (
 	DeviceName        = 0xC // Friendly name of the device (ex: USB-Enhanced-SERIAL CH343 (COM3) )
 )
 
-// Search for the MAKCU via the default name and the VID and PID of the device.
-func Find() (MakcuPort string, err error) {
+// Find searches for the MAKCU device by default name or VID/PID and returns the COM port.
+func Find() (string, error) {
 	setupapi := syscall.NewLazyDLL("setupapi.dll")
 	getClassDevs := setupapi.NewProc("SetupDiGetClassDevsW")
 	enumDeviceInfo := setupapi.NewProc("SetupDiEnumDeviceInfo")
@@ -70,74 +70,64 @@ func Find() (MakcuPort string, err error) {
 	destroyDeviceList := setupapi.NewProc("SetupDiDestroyDeviceInfoList")
 
 	guid := windows.GUID{0x4d36e978, 0xe325, 0x11ce, [8]byte{0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}}
-
 	h, _, _ := getClassDevs.Call(uintptr(unsafe.Pointer(&guid)), 0, 0, uintptr(0x2))
 	if h == 0 || h == ^uintptr(0) {
-		DebugPrint("Failed to get device list")
-		return "", fmt.Errorf("Failed to get device list")
+		DebugPrint("Failed to get device list\n")
+		return "", fmt.Errorf("failed to get device list")
 	}
-
 	defer destroyDeviceList.Call(h)
 
-	index := 0
-	for {
+	for index := 0; ; index++ {
 		var devInfo struct {
 			cbSize    uint32
 			ClassGuid windows.GUID
 			DevInst   uint32
 			Reserved  uintptr
 		}
-
 		devInfo.cbSize = uint32(unsafe.Sizeof(devInfo))
 
-		if ok, _, _ := enumDeviceInfo.Call(h, uintptr(index), uintptr(unsafe.Pointer(&devInfo))); ok == 0 {
+		ok, _, _ := enumDeviceInfo.Call(h, uintptr(index), uintptr(unsafe.Pointer(&devInfo)))
+		if ok == 0 {
 			break
 		}
 
 		description := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, DeviceDescription)
 		hwid := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, HardwareID)
-		DeviceName := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, DeviceName)
+		deviceNameStr := GetDeviceInfo(h, unsafe.Pointer(&devInfo), getDeviceProperty, DeviceName)
 
-		if DeviceName == "" || description == "" || hwid == "" {
+		if deviceNameStr == "" || description == "" || hwid == "" {
 			continue
 		}
 
-		if strings.Contains(DeviceName, "USB-Enhanced-SERIAL CH343") || strings.Contains(hwid, "VID_1A86&PID_55D3") {
-			DebugPrint("--------\r\n")
-			DebugPrint("Name: %s\r\n", DeviceName)
-			DebugPrint("Description:   %s\r\n", description)
-			DebugPrint("Hardware Info:   %s\r\n", hwid)
+		if strings.Contains(deviceNameStr, "USB-Enhanced-SERIAL CH343") || strings.Contains(hwid, "VID_1A86&PID_55D3") {
+			DebugPrint("--------\n")
+			DebugPrint("Name: %s\n", deviceNameStr)
+			DebugPrint("Description: %s\n", description)
+			DebugPrint("Hardware Info: %s\n", hwid)
 
-			Port := regexp.MustCompile(`COM\d+`).FindString(DeviceName) // creds to yrlu for this idea lawl
-			if Port != "" {
-				DebugPrint("Port Name: %s\n", Port)
-				DebugPrint("--------\r\n")
-				return Port, nil
+			port := regexp.MustCompile(`COM\d+`).FindString(deviceNameStr) //creds to yrlu for this idea lawl
+			if port != "" {
+				DebugPrint("Port Name: %s\n", port)
+				DebugPrint("--------\n")
+				return port, nil
 			}
 
-			// if we can't find the COM port from the name, then we try to get it from the registry.
-			Port, err = GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
+			// Try to get port from registry if not found in name
+			port, err := GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
 			if err != nil {
 				DebugPrint("Failed to get port name: %v\n", err)
 				return "", err
 			}
-
-			DebugPrint("Port Name: %s\n", Port)
-			DebugPrint("--------\r\n")
-
-			if strings.Contains(Port, "COM") {
-				return Port, nil
+			DebugPrint("Port Name: %s\n", port)
+			DebugPrint("--------\n")
+			if strings.Contains(port, "COM") {
+				return port, nil
 			}
-
 			return "", nil
 		}
-
-		index++
 	}
-
-	fmt.Printf("Failed to locate MAKCU!\n")
-
-	return "", fmt.Errorf("Device not found")
+	fmt.Println("Failed to locate MAKCU!")
+	return "", fmt.Errorf("device not found")
 }
 
 // Sets the timeout settings for the COM port
@@ -178,12 +168,12 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 
 	path, err := windows.UTF16PtrFromString(portName)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to convert port name to UTF16: %v", err)
+		return nil, fmt.Errorf("failed to convert port name to UTF16: %v", err)
 	}
 
 	handle, _, err := openPort.Call(uintptr(unsafe.Pointer(path)), syscall.GENERIC_READ|syscall.GENERIC_WRITE, 0, 0, 3, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 	if handle == uintptr(syscall.InvalidHandle) {
-		return nil, fmt.Errorf("Failed to open port: %v", err)
+		return nil, fmt.Errorf("failed to open port: %v", err)
 	}
 
 	portHandle := windows.Handle(handle)
@@ -201,12 +191,12 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 
 	ret, _, err := setCommState.Call(uintptr(portHandle), uintptr(unsafe.Pointer(dcbOpts)))
 	if ret == 0 {
-		return nil, fmt.Errorf("Failed to set communication state: %v", err)
+		return nil, fmt.Errorf("failed to set communication state: %v", err)
 	}
 
 	err = SetTimeouts(portHandle)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to set timeouts: %v", err)
+		return nil, fmt.Errorf("failed to set timeouts: %v", err)
 	}
 
 	CleanPort := strings.TrimPrefix(portName, `\\.\`)
@@ -229,35 +219,35 @@ func (m *MakcuHandle) Close() error {
 func ChangeBaudRate(m *MakcuHandle) (NewConn *MakcuHandle, err error) {
 	n, err := m.Write([]byte{0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to change baud rate: Write Error: %v", err)
+		return nil, fmt.Errorf("failed to change baud rate: write error: %v", err)
 	}
 
 	if n != 9 {
-		return nil, fmt.Errorf("Failed to change baud rate: Wrong number of bytes written")
+		return nil, fmt.Errorf("failed to change baud rate: wrong number of bytes written")
 	}
 
 	m.Close()
 
 	NewConn, err = Connect(m.Port, 4000000)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to change baud rate: Connect Error: %v", err)
+		return nil, fmt.Errorf("failed to change baud rate: connect error: %v", err)
 	}
 
 	time.Sleep(1 * time.Second)
 
 	_, err = NewConn.Write([]byte("km.version()\r"))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to change baud rate: Write Error: %v", err)
+		return nil, fmt.Errorf("failed to change baud rate: write error: %v", err)
 	}
 
 	ReadBuf := make([]byte, 32)
 	n, err = NewConn.Read(ReadBuf)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to change baud rate: Read Error: %v", err)
+		return nil, fmt.Errorf("failed to change baud rate: read error: %v", err)
 	}
 
 	if !strings.Contains(string(ReadBuf[:n]), "MAKCU") {
-		return nil, fmt.Errorf("Failed to change baud rate: Did Not Receive Expected Response...")
+		return nil, fmt.Errorf("failed to change baud rate: did not receive expected response")
 	}
 
 	time.Sleep(1 * time.Second)
@@ -277,7 +267,7 @@ func (m *MakcuHandle) Write(data []byte) (int, error) {
 	overlapped.Offset = 0
 	overlapped.OffsetHigh = 0
 
-	DebugPrint("Sending %s\r\n", data[:len(data)])
+	DebugPrint("Sending %s\r\n", data[:])
 
 	ret, _, err := writeFile.Call(uintptr(m.handle), uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)), uintptr(unsafe.Pointer(&bytesWritten)), uintptr(unsafe.Pointer(&overlapped)))
 	if ret == 0 {
@@ -411,7 +401,7 @@ func (m *MakcuHandle) ClickMouse(i int, delay time.Duration) error {
 	case MOUSE_BUTTON_MIDDLE:
 		down, up = m.MiddleDown, m.MiddleUp
 	default:
-		return fmt.Errorf("Invalid mouse button: %d", i)
+		return fmt.Errorf("invalid mouse button: %d", i)
 	}
 
 	if err := down(); err != nil {
@@ -463,7 +453,7 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 		cmd = fmt.Sprintf("km.move(%d, %d, %d, %d, %d)\r", x, y, params[0], params[1], params[2])
 	default:
 		DebugPrint("Invalid number of parameters")
-		return fmt.Errorf("Invalid number of parameters")
+		return fmt.Errorf("invalid number of parameters")
 	}
 
 	_, err := m.Write([]byte(cmd))
@@ -474,7 +464,3 @@ func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
 
 	return nil
 }
-
-
-
-
