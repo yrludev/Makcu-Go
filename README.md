@@ -136,12 +136,12 @@ func main(){
     ```go
     err := MakcuConn.MiddleClick()
     ```
-- **MakcuConn.ClickMouse(i int, delay time.Duration)**: Simulates a mouse click with a given delay between the press and the release.
+- **MakcuConn.Click(i int, delay time.Duration)**: Simulates a mouse click with a given delay between the press and the release.
     ```go
     // MOUSE_BUTTON_LEFT = 1, MOUSE_BUTTON_RIGHT = 2, MOUSE_BUTTON_MIDDLE = 3
-    err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_LEFT, 1 *time.Second)
-    err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_RIGHT, 1 *time.Second)
-    err := MakcuConn.ClickMouse(makcu.MOUSE_BUTTON_MIDDLE, 1 *time.Second)
+    err := MakcuConn.Click(makcu.MOUSE_BUTTON_LEFT, 1 *time.Second)
+    err := MakcuConn.Click(makcu.MOUSE_BUTTON_RIGHT, 1 *time.Second)
+    err := MakcuConn.Click(makcu.MOUSE_BUTTON_MIDDLE, 1 *time.Second)
     ```
 - **MakcuConn.MoveMouse(x, y int)**: Moves the mouse cursor over (x, y) pixels.
     ```go

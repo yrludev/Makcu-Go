@@ -105,6 +105,7 @@ func Find() (string, error) {
 		DebugPrint("Failed to get device list\n")
 		return "", fmt.Errorf("Find: failed to get device list")
 	}
+
 	defer func() {
 		ret, _, _ := destroyDeviceList.Call(h)
 		if ret == 0 {
@@ -121,6 +122,7 @@ func Find() (string, error) {
 			DevInst   uint32
 			Reserved  uintptr
 		}
+
 		devInfo.cbSize = uint32(unsafe.Sizeof(devInfo))
 
 		ok, _, _ := enumDeviceInfo.Call(h, uintptr(index), uintptr(unsafe.Pointer(&devInfo)))
@@ -153,21 +155,20 @@ func Find() (string, error) {
 			port, err := GetPortName(h, (*byte)(unsafe.Pointer(&devInfo)))
 			if err != nil {
 				DebugPrint("Failed to get port name: %v\n", err)
-				// Always destroy device list before returning
-				ret, _, _ := destroyDeviceList.Call(h)
-				if ret == 0 {
-					ErrorPrint("Failed to destroy device info list handle after error")
-				}
 				return "", fmt.Errorf("Find: failed to get port name from registry: %w", err)
 			}
+
 			DebugPrint("Port Name: %s\n", port)
 			DebugPrint("--------\n")
+
 			if strings.Contains(port, "COM") {
 				return port, nil
 			}
+
 			return "", nil
 		}
 	}
+
 	fmt.Println("Failed to locate MAKCU!")
 	return "", fmt.Errorf("Find: device not found")
 }
@@ -258,10 +259,15 @@ func Connect(portName string, baudRate uint32) (*MakcuHandle, error) {
 
 // Close the connection to the MAKCU
 func (m *MakcuHandle) Close() error {
+	if m == nil {
+		return fmt.Errorf("Close: MakcuHandle is nil (no device connected)")
+	}
+
 	err := windows.CloseHandle(m.handle)
 	if err != nil {
 		return fmt.Errorf("Close: failed to close handle: %w", err)
 	}
+
 	return nil
 }
 
@@ -269,7 +275,11 @@ func (m *MakcuHandle) Close() error {
 
 // Sends the bytes needed to change the Baud Rate of the MAKCU to 4m and then returns a new Connection object with the new baud rate
 // Note: This is NOT a permanent change and will reset back to the default 115200 baud rate after the MAKCU powers off and then back on again.
-func (m *MakcuHandle) ChangeBaudRate() (*MakcuHandle, error) {
+func ChangeBaudRate(m *MakcuHandle) (*MakcuHandle, error) {
+	if m == nil {
+		return nil, fmt.Errorf("ChangeBaudRate: MakcuHandle is nil (no device connected)")
+	}
+
 	n, err := m.Write([]byte{0xDE, 0xAD, 0x05, 0x00, 0xA5, 0x00, 0x09, 0x3D, 0x00})
 	if err != nil {
 		// Always try to close the handle on error
@@ -323,6 +333,10 @@ func (m *MakcuHandle) ChangeBaudRate() (*MakcuHandle, error) {
 
 // Sends the given bytes to the MAKCU and returns the number of bytes written.
 func (m *MakcuHandle) Write(data []byte) (int, error) {
+	if m == nil {
+		return -1, fmt.Errorf("Write: MakcuHandle is nil (no device connected)")
+	}
+
 	var bytesWritten uint32
 	kernel32 := syscall.NewLazyDLL("kernel32.dll")
 	writeFile := kernel32.NewProc("WriteFile")
@@ -345,6 +359,10 @@ func (m *MakcuHandle) Write(data []byte) (int, error) {
 
 // Reads data from the MAKCU and saves it to a given buffer then returns the number of bytes read.
 func (m *MakcuHandle) Read(buffer []byte) (int, error) {
+	if m == nil {
+		return -1, fmt.Errorf("Write: MakcuHandle is nil (no device connected)")
+	}
+
 	kernel32 := syscall.NewLazyDLL("kernel32.dll")
 	readFile := kernel32.NewProc("ReadFile")
 
@@ -361,11 +379,16 @@ func (m *MakcuHandle) Read(buffer []byte) (int, error) {
 
 // 🐱 Mouse left down
 func (m *MakcuHandle) LeftDown() error {
+	if m == nil {
+		return fmt.Errorf("LeftDown: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.left(1)\r"))
 	if err != nil {
 		DebugPrint("Failed to press mouse: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -373,11 +396,16 @@ func (m *MakcuHandle) LeftDown() error {
 
 // 🐱 Mouse left up
 func (m *MakcuHandle) LeftUp() error {
+	if m == nil {
+		return fmt.Errorf("LeftUp: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.left(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to release mouse: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -385,11 +413,16 @@ func (m *MakcuHandle) LeftUp() error {
 
 // 🐱 Mouse left click
 func (m *MakcuHandle) LeftClick() error {
+	if m == nil {
+		return fmt.Errorf("LeftClick: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.left(1)\r km.left(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to click mouse: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -397,11 +430,16 @@ func (m *MakcuHandle) LeftClick() error {
 
 // 🐱 Mouse right down
 func (m *MakcuHandle) RightDown() error {
+	if m == nil {
+		return fmt.Errorf("RightDown: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.right(1)\r"))
 	if err != nil {
 		DebugPrint("Failed to press mouse: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -409,11 +447,16 @@ func (m *MakcuHandle) RightDown() error {
 
 // 🐱 Mouse right up
 func (m *MakcuHandle) RightUp() error {
+	if m == nil {
+		return fmt.Errorf("RightUp: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.right(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to release mouse: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -421,11 +464,16 @@ func (m *MakcuHandle) RightUp() error {
 
 // 🐱 Mouse right click
 func (m *MakcuHandle) RightClick() error {
+	if m == nil {
+		return fmt.Errorf("RightClick: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.right(1)\r km.right(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to right click mouse: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -433,11 +481,16 @@ func (m *MakcuHandle) RightClick() error {
 
 // 🐱 Mouse middle down
 func (m *MakcuHandle) MiddleDown() error {
+	if m == nil {
+		return fmt.Errorf("MiddleDown: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.middle(1)\r"))
 	if err != nil {
 		DebugPrint("Failed to press middle mouse button: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -445,11 +498,16 @@ func (m *MakcuHandle) MiddleDown() error {
 
 // 🐱 Mouse middle up
 func (m *MakcuHandle) MiddleUp() error {
+	if m == nil {
+		return fmt.Errorf("MiddleUp: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.middle(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to release middle mouse button: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -457,11 +515,16 @@ func (m *MakcuHandle) MiddleUp() error {
 
 // 🐱 Mouse middle click
 func (m *MakcuHandle) MiddleClick() error {
+	if m == nil {
+		return fmt.Errorf("MiddleClick: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte("km.middle(1)\r km.middle(0)\r"))
 	if err != nil {
 		DebugPrint("Failed to middle click mouse: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -476,6 +539,10 @@ const (
 
 // 🐱 Clicks a mouse button
 func (m *MakcuHandle) Click(i int, delay time.Duration) error {
+	if m == nil {
+		return fmt.Errorf("Click: MakcuHandle is nil (no device connected)")
+	}
+
 	// Basically, we create a function pointer which is just basically a variable that stores a function for us.
 	// Then we can use that variable to call the function later on. :()
 	type mouseAction func() error
@@ -507,27 +574,45 @@ func (m *MakcuHandle) Click(i int, delay time.Duration) error {
 	return nil
 }
 
+func (m *MakcuHandle) ClickMouse() error {
+	if m == nil {
+		return fmt.Errorf("ClickMouse: MakcuHandle is nil (no device connected)")
+	}
+
+	return m.Click(MOUSE_BUTTON_LEFT, 0)
+}
+
 // 🐱🐱🐱 Cat click! 🐱🐱🐱
 
 // 🐱 Scrolls the mouse
-func (m *MakcuHandle) Scroll(amount int) error {
+func (m *MakcuHandle) ScrollMouse(amount int) error {
+	if m == nil {
+		return fmt.Errorf("ScrollMouse: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte(fmt.Sprintf("km.wheel(%d)\r", amount)))
 	if err != nil {
 		DebugPrint("Failed to scroll mouse: %v", err)
 		return err
 	}
+
 	return nil
 }
 
 // 🐱🐱🐱 Cat scroll! 🐱🐱🐱
 
 // 🐱 Moves the mouse
-func (m *MakcuHandle) Move(x, y int) error {
+func (m *MakcuHandle) MoveMouse(x, y int) error {
+	if m == nil {
+		return fmt.Errorf("MoveMouse: MakcuHandle is nil (no device connected)")
+	}
+
 	_, err := m.Write([]byte(fmt.Sprintf("km.move(%d, %d)\r", x, y)))
 	if err != nil {
 		DebugPrint("Failed to move mouse: Write Error: %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -535,7 +620,11 @@ func (m *MakcuHandle) Move(x, y int) error {
 
 // use a curve with the built in curve functionality from MAKCU... i THINK this is only on fw v3+ ??? idk don't care to fact check it rn either :)
 // "It is common sense that the higher the number of the third parameter, the smoother the curve will be fitted" - from MAKCU/km box docs
-func (m *MakcuHandle) MoveCurve(x, y int, params ...int) error {
+func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
+	if m == nil {
+		return fmt.Errorf("MoveMouseWithCurve: MakcuHandle is nil (no device connected)")
+	}
+
 	var cmd string
 	switch len(params) {
 	case 0:
@@ -554,37 +643,6 @@ func (m *MakcuHandle) MoveCurve(x, y int, params ...int) error {
 		DebugPrint("Failed to move mouse with curve: Write Error: %v", err)
 		return err
 	}
+
 	return nil
-}
-
-// MoveMouse is a wrapper for Move to match example usage
-func (m *MakcuHandle) MoveMouse(x, y int) error {
-	return m.Move(x, y)
-}
-
-// ScrollMouse is a wrapper for Scroll to match example usage
-func (m *MakcuHandle) ScrollMouse(amount int) error {
-	return m.Scroll(amount)
-}
-
-// MoveMouseWithCurve is a wrapper for MoveCurve to match example usage, with nil check
-func (m *MakcuHandle) MoveMouseWithCurve(x, y int, params ...int) error {
-	if m == nil {
-		return fmt.Errorf("MoveMouseWithCurve: MakcuHandle is nil (no device connected)")
-	}
-	return m.MoveCurve(x, y, params...)
-}
-
-// ClickMouse is a wrapper for Click to match example usage, with nil check
-func (m *MakcuHandle) ClickMouse() error {
-	if m == nil {
-		return fmt.Errorf("ClickMouse: MakcuHandle is nil (no device connected)")
-	}
-	// Default to left click, no delay
-	return m.Click(MOUSE_BUTTON_LEFT, 0)
-}
-
-// ChangeBaudRate is a package-level function for compatibility with examples
-func ChangeBaudRate(m *MakcuHandle) (*MakcuHandle, error) {
-	return m.ChangeBaudRate()
 }
