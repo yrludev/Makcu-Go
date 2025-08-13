@@ -157,6 +157,7 @@ func main(){
 - **MakcuConn.ScrollMouse(amount int)**: Scrolls the mouse by the specified amount (positive for up, negative for down).
     ```go
     err := MakcuConn.ScrollMouse(6)
+    fix v23
     ```
 
   
